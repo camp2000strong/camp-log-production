@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>2000 Strong - Camp Log Production</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body style="margin:0; padding:16px; background:#f0ede3;">
 
@@ -15,7 +16,13 @@
         <h1>2000 Strong - Camp Log Production</h1>
         <p class="hdr-sub" id="hdr-sub">Planning Tracker &nbsp;&middot;&nbsp; Camp Grady Spruce</p>
       </div>
-      <button class="reset-btn" id="reset-all-btn" title="Reset all progress">Reset All</button>
+      <div class="hdr-btns">
+        <button class="qr-btn" id="production-qr-btn" title="Show QR code for this page">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="5" y="5" width="3" height="3" fill="currentColor"/><rect x="16" y="5" width="3" height="3" fill="currentColor"/><rect x="5" y="16" width="3" height="3" fill="currentColor"/></svg>
+          Production QR
+        </button>
+        <button class="reset-btn" id="reset-all-btn" title="Reset all progress">Reset All</button>
+      </div>
     </div>
     <div class="progress-wrap">
       <div class="progress-label">
@@ -31,6 +38,7 @@
     <button class="tab-btn" data-tab="templates">Outreach Templates</button>
     <button class="tab-btn" data-tab="audit">Content Audit</button>
     <button class="tab-btn" data-tab="atcamp">At Camp</button>
+    <button class="tab-btn" data-tab="references">References</button>
   </nav>
 
   <main>
@@ -38,9 +46,19 @@
     <section id="panel-templates" class="panel"></section>
     <section id="panel-audit" class="panel"></section>
     <section id="panel-atcamp" class="panel"></section>
+    <section id="panel-references" class="panel"></section>
   </main>
 
   <div class="toast" id="toast"></div>
+</div>
+
+<div id="qr-modal-overlay">
+  <div id="qr-modal-box">
+    <div id="qr-modal-label"></div>
+    <div id="qr-modal-sub">Scan to open on your phone</div>
+    <div id="qr-modal-code"></div>
+    <button id="qr-modal-close">Close</button>
+  </div>
 </div>
 
 <style>
@@ -82,11 +100,58 @@
   .hdr-top-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
   .hdr h1 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: 0.01em; }
   .hdr-sub { margin: 4px 0 14px; font-size: 12.5px; color: var(--gold-pale); }
+  .hdr-btns { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
   .reset-btn {
     flex-shrink: 0; background: none; border: 1px solid rgba(255,255,255,0.35); color: var(--gold-pale);
     font-size: 11px; font-weight: 700; padding: 5px 10px; border-radius: 20px; cursor: pointer;
   }
   .reset-btn:hover { background: rgba(255,255,255,0.12); }
+  .qr-btn {
+    flex-shrink: 0; background: none; border: 1px solid rgba(255,255,255,0.35); color: var(--gold-pale);
+    font-size: 11px; font-weight: 700; padding: 5px 10px; border-radius: 20px; cursor: pointer;
+    display: flex; align-items: center; gap: 5px; white-space: nowrap;
+  }
+  .qr-btn:hover { background: rgba(255,255,255,0.12); }
+  .qr-btn svg { width: 13px; height: 13px; fill: none; stroke: var(--gold-pale); stroke-width: 1.8; }
+
+  #qr-modal-overlay {
+    display: none; position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.6);
+    align-items: center; justify-content: center;
+  }
+  #qr-modal-overlay.open { display: flex; }
+  #qr-modal-box {
+    background: #fff; border-radius: 16px; padding: 24px 20px 20px; max-width: 280px; width: 90%;
+    display: flex; flex-direction: column; align-items: center; gap: 12px; box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+  }
+  #qr-modal-label { font-size: 14px; font-weight: bold; color: var(--navy); text-align: center; letter-spacing: 0.02em; }
+  #qr-modal-sub { font-size: 11px; color: var(--mid); text-align: center; letter-spacing: 0.04em; text-transform: uppercase; }
+  #qr-modal-code { width: 200px; height: 200px; }
+  #qr-modal-code canvas, #qr-modal-code img { width: 200px !important; height: 200px !important; }
+  #qr-modal-close {
+    background: var(--gold); color: var(--navy-deep); border: none; border-radius: 30px; padding: 8px 24px;
+    font-size: 13px; font-weight: bold; font-family: inherit; cursor: pointer;
+  }
+
+  /* ---------- REFERENCES ---------- */
+  .ref-note { font-size: 12px; color: var(--mid); margin-bottom: 14px; line-height: 1.4; }
+  .ref-links { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+  .ref-link-card {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+    text-decoration: none; color: inherit;
+  }
+  .ref-link-title { font-size: 13.5px; font-weight: 700; color: var(--navy); }
+  .ref-link-sub { font-size: 11.5px; color: var(--mid); margin-top: 2px; }
+  .ref-link-arrow { font-size: 18px; color: var(--gold); flex-shrink: 0; }
+  .ref-section-title { font-size: 13px; font-weight: 700; color: var(--navy); margin: 4px 0 8px; }
+  .ref-steps { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
+  .ref-steps h4 { font-size: 12.5px; color: var(--navy); margin: 0 0 8px; }
+  .ref-steps ol { margin: 0 0 4px 18px; padding: 0; font-size: 12.5px; line-height: 1.55; color: var(--ink); }
+  .ref-steps ol li { margin-bottom: 6px; }
+  .ref-callout {
+    background: var(--amber-bg); border-radius: 8px; padding: 10px 12px; font-size: 11.5px;
+    color: var(--amber); line-height: 1.45; margin-top: 10px;
+  }
   .progress-label { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--gold-pale); margin-bottom: 5px; }
   .progress-bar-outer { height: 7px; background: rgba(255,255,255,0.15); border-radius: 4px; overflow: hidden; }
   .progress-bar-inner { height: 100%; width: 0%; background: var(--gold); border-radius: 4px; transition: width 0.3s ease; }
@@ -583,6 +648,10 @@ Rex`,
     { name: 'Zip Line', status: 'violet', note: 'Needs photos' },
   ];
 
+  const PRODUCTION_URL = 'https://camp2000strong.github.io/camp-log-production/';
+  const ARCHIVE_URL = 'https://camp2000strong.github.io/2000strong-archive/';
+  const WORKFLOW_GUIDE_URL = 'https://drive.google.com/file/d/1MifW2kMIUEhNNJUnURDFynrbe1lXOACq/view?usp=sharing';
+
   // ---------------- STATE ----------------
   let taskState = {};
   let atCampPages = [];
@@ -1036,6 +1105,67 @@ Rex`,
     });
   }
 
+  // ---------------- BUILD: REFERENCES ----------------
+  function buildReferences() {
+    const root = document.getElementById('panel-references');
+    root.innerHTML = `
+      <p class="ref-note">Quick links to the production workflow guide and the public archive, plus how-to notes for keeping the archive current each year.</p>
+
+      <div class="ref-links">
+        <a class="ref-link-card" href="${WORKFLOW_GUIDE_URL}" target="_blank" rel="noopener">
+          <div>
+            <div class="ref-link-title">Workflow Guide (PDF)</div>
+            <div class="ref-link-sub">Full CampLog production workflow, step-by-step</div>
+          </div>
+          <div class="ref-link-arrow">&rarr;</div>
+        </a>
+        <a class="ref-link-card" href="${ARCHIVE_URL}" target="_blank" rel="noopener">
+          <div>
+            <div class="ref-link-title">2000 Strong Archive</div>
+            <div class="ref-link-sub">All years of Camp Logs, Photos, and Devotionals</div>
+          </div>
+          <div class="ref-link-arrow">&rarr;</div>
+        </a>
+      </div>
+
+      <div class="ref-section-title">Updating the Archive Each Year</div>
+      <div class="ref-steps">
+        <h4>The archive is one static HTML page — no database. Each year's Camp Log, Photos album, and Devotional are hardcoded entries. Adding a new year means adding one new entry per section, newest first.</h4>
+        <ol>
+          <li>Gather this year's three links: the Camp Log PDF's Google Drive share link, the Google Photos album link, and the Devotional PDF's Google Drive share link.</li>
+          <li>Open the archive's <code>index.html</code> (repo: <b>camp2000strong/2000strong-archive</b>) and find the <b>Camp Logs</b> section — the first <code>year-card</code> block at the top of its grid.</li>
+          <li>Copy that whole block and paste a new copy above it (so the newest year stays first). Update the Drive URL in both the <code>openLog(...)</code> call and the QR icon's <code>showQR(...)</code> call, plus the year number and label text.</li>
+          <li>Repeat in the <b>Photos</b> section, using <code>openPhoto(...)</code> instead of <code>openLog(...)</code>, with the Google Photos link.</li>
+          <li>Repeat in the <b>Devotionals</b> section — same pattern as Camp Log (uses <code>openLog</code>), but swap the <code>devo-thumb</code>'s year and theme text instead of a cover image.</li>
+          <li>Optional: give the Log/Photos card a cover thumbnail by converting a JPG/PNG to base64 and pasting it into that card's <code>&lt;img src="data:image/...;base64,..."&gt;</code>. Devotional cards don't need one — they show year + theme text only.</li>
+          <li>Commit and push to the <b>camp2000strong/2000strong-archive</b> GitHub repo, let GitHub Pages rebuild (~1 minute), then check the live archive.</li>
+        </ol>
+        <div class="ref-callout">
+          Worth knowing: the archive's hardcoded approach is why its file is several MB (each year's cover image is embedded as base64). A database backend (like this tracker uses) would shrink the file and let you add a year without touching code — at the cost of needing a network connection to load and a bit more setup. Not changed yet — see the Workflow Guide addendum for the full comparison before deciding.
+        </div>
+      </div>
+    `;
+  }
+
+  // ---------------- QR MODAL ----------------
+  var currentProductionQR = null;
+  function showProductionQR() {
+    document.getElementById('qr-modal-label').textContent = '2000 Strong - Camp Log Production';
+    const container = document.getElementById('qr-modal-code');
+    container.innerHTML = '';
+    currentProductionQR = new QRCode(container, {
+      text: PRODUCTION_URL, width: 200, height: 200,
+      colorDark: '#1b2a3d', colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M,
+    });
+    document.getElementById('qr-modal-overlay').classList.add('open');
+  }
+  function closeProductionQR() {
+    document.getElementById('qr-modal-overlay').classList.remove('open');
+    document.getElementById('qr-modal-code').innerHTML = '';
+    currentProductionQR = null;
+  }
+
   // ---------------- RESET ALL ----------------
   async function resetAll() {
     const first = confirm(
@@ -1084,10 +1214,16 @@ Rex`,
     buildTemplates();
     buildAudit();
     buildAtCamp();
+    buildReferences();
     setupTabs();
     updateProgress();
     updateHeaderSub();
     document.getElementById('reset-all-btn').addEventListener('click', resetAll);
+    document.getElementById('production-qr-btn').addEventListener('click', showProductionQR);
+    document.getElementById('qr-modal-close').addEventListener('click', closeProductionQR);
+    document.getElementById('qr-modal-overlay').addEventListener('click', (e) => {
+      if (e.target.id === 'qr-modal-overlay') closeProductionQR();
+    });
   }
 
   init();
