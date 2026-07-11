@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2000 Strong - Camp Log Production</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body style="margin:0; padding:16px; background:#f0ede3;">
+
+<div id="tracker-root">
+  <header class="hdr">
+    <div class="hdr-top-row">
+      <div class="hdr-title">
+        <h1>2000 Strong - Camp Log Production</h1>
+        <p class="hdr-sub" id="hdr-sub">Planning Tracker &nbsp;&middot;&nbsp; Camp Grady Spruce</p>
+      </div>
+      <button class="reset-btn" id="reset-all-btn" title="Reset all progress">Reset All</button>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-label">
+        <span>Pre-camp task progress</span>
+        <span id="prog-label">– of – tasks</span>
+      </div>
+      <div class="progress-bar-outer"><div class="progress-bar-inner" id="prog-bar"></div></div>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabs">
+    <button class="tab-btn active" data-tab="timeline">Timeline &amp; Tasks</button>
+    <button class="tab-btn" data-tab="templates">Outreach Templates</button>
+    <button class="tab-btn" data-tab="audit">Content Audit</button>
+    <button class="tab-btn" data-tab="atcamp">At Camp</button>
+  </nav>
+
+  <main>
+    <section id="panel-timeline" class="panel active"></section>
+    <section id="panel-templates" class="panel"></section>
+    <section id="panel-audit" class="panel"></section>
+    <section id="panel-atcamp" class="panel"></section>
+  </main>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<style>
+  #tracker-root {
+    --navy: #1b2a3d;
+    --navy-deep: #131f2d;
+    --gold: #c69a4e;
+    --gold-pale: #e8d4a8;
+    --cream: #f7f2e7;
+    --green: #4a7c5d;
+    --green-bg: #e6efe8;
+    --amber: #a8782e;
+    --amber-bg: #f4e9d6;
+    --red: #9c4a3c;
+    --red-bg: #f3e2dd;
+    --ink: #2b2b28;
+    --mid: #6b6a63;
+    --line: #e2dccb;
+    --tan: #b89657; --tan-bg: #f1e8d2;
+    --violet: #7a5a8c; --violet-bg: #ece2f0;
+
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--cream);
+    border-radius: 14px;
+    overflow: hidden;
+    max-width: 760px;
+    margin: 0 auto;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+
+  #tracker-root * { box-sizing: border-box; }
+
+  .hdr {
+    background: linear-gradient(135deg, var(--navy) 0%, var(--navy-deep) 100%);
+    color: var(--cream);
+    padding: 20px 18px 16px;
+  }
+  .hdr-top-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+  .hdr h1 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: 0.01em; }
+  .hdr-sub { margin: 4px 0 14px; font-size: 12.5px; color: var(--gold-pale); }
+  .reset-btn {
+    flex-shrink: 0; background: none; border: 1px solid rgba(255,255,255,0.35); color: var(--gold-pale);
+    font-size: 11px; font-weight: 700; padding: 5px 10px; border-radius: 20px; cursor: pointer;
+  }
+  .reset-btn:hover { background: rgba(255,255,255,0.12); }
+  .progress-label { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--gold-pale); margin-bottom: 5px; }
+  .progress-bar-outer { height: 7px; background: rgba(255,255,255,0.15); border-radius: 4px; overflow: hidden; }
+  .progress-bar-inner { height: 100%; width: 0%; background: var(--gold); border-radius: 4px; transition: width 0.3s ease; }
+
+  .tabs {
+    display: flex;
+    background: #efe8d6;
+    border-bottom: 1px solid var(--line);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tab-btn {
+    flex: 1 0 auto;
+    min-width: 110px;
+    padding: 12px 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--mid);
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .tab-btn.active { color: var(--navy); border-bottom-color: var(--gold); }
+  .tab-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
+
+  main { padding: 16px; min-height: 200px; }
+  .panel { display: none; }
+  .panel.active { display: block; animation: fadein 0.2s ease; }
+  @keyframes fadein { from { opacity: 0; } to { opacity: 1; } }
+
+  /* ---------- CAMP DATE BOX ---------- */
+  .campdate-box { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 16px; }
+  .campdate-label { font-size: 12.5px; font-weight: 700; color: var(--navy); margin-bottom: 8px; }
+  .campdate-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+  .campdate-row label { display: flex; flex-direction: column; font-size: 11px; color: var(--mid); gap: 4px; }
+  .campdate-row input[type=date] { border: 1px solid var(--line); border-radius: 7px; padding: 7px 8px; font-size: 13px; font-family: inherit; }
+  .campdate-row button {
+    background: var(--navy); color: var(--cream); border: none; border-radius: 7px;
+    padding: 8px 14px; font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+  .campdate-hint { font-size: 11px; color: var(--mid); margin-top: 8px; margin-bottom: 0; }
+
+  /* ---------- TIMELINE ---------- */
+  .phase { margin-bottom: 20px; }
+  .phase-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+  .phase-label { font-size: 13px; font-weight: 700; color: var(--navy); }
+  .phase-sub { font-size: 11.5px; color: var(--mid); }
+  .phase-card { background: #fff; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .task-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+  .task-row:last-child { border-bottom: none; }
+  .task-check {
+    margin-top: 2px; flex-shrink: 0; width: 19px; height: 19px;
+    accent-color: var(--green); cursor: pointer;
+  }
+  .task-main { flex: 1; min-width: 0; }
+  .task-title { font-size: 13.5px; line-height: 1.4; color: var(--ink); }
+  .task-title.done { text-decoration: line-through; color: var(--mid); }
+  .task-sub { font-size: 11.5px; color: var(--mid); margin-top: 2px; line-height: 1.3; }
+  .task-date { font-size: 11px; color: var(--gold); font-weight: 700; white-space: nowrap; margin-left: auto; padding-left: 8px; text-align: right; }
+
+  /* ---------- TEMPLATES ---------- */
+  .tmpl-note { font-size: 12px; color: var(--mid); margin-bottom: 14px; line-height: 1.4; }
+  .template-card { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 14px; }
+  .template-title { font-size: 13.5px; font-weight: 700; color: var(--navy); margin-bottom: 2px; }
+  .template-to { font-size: 11.5px; color: var(--gold); font-weight: 600; margin-bottom: 8px; }
+  .template-body {
+    font-size: 12.5px; line-height: 1.55; color: var(--ink);
+    white-space: pre-wrap; background: var(--cream); border-radius: 8px;
+    padding: 10px 12px; margin-bottom: 10px; max-height: 260px; overflow-y: auto;
+  }
+  .copy-btn {
+    font-size: 12px; font-weight: 600; color: var(--navy); background: var(--gold-pale);
+    border: none; border-radius: 6px; padding: 7px 12px; cursor: pointer;
+  }
+  .copy-btn.copied { background: var(--green); color: #fff; }
+
+  /* ---------- AUDIT ---------- */
+  .audit-summary { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; font-size: 12.5px; }
+  .audit-stat { display: flex; align-items: center; gap: 6px; }
+  .audit-dot { width: 9px; height: 9px; border-radius: 50%; }
+  .audit-list { display: flex; flex-direction: column; gap: 6px; }
+  .audit-row { display: flex; align-items: flex-start; gap: 10px; background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; }
+  .audit-page { flex: 1; min-width: 0; font-size: 13px; color: var(--ink); }
+  .audit-note { font-size: 11.5px; color: var(--mid); margin-top: 1px; }
+  .audit-badge {
+    flex-shrink: 0; font-size: 10.5px; font-weight: 700; padding: 3px 8px;
+    border-radius: 20px; white-space: nowrap; margin-top: 1px;
+  }
+  .badge-keep { background: var(--green-bg); color: var(--green); }
+  .badge-update { background: var(--amber-bg); color: var(--amber); }
+  .badge-rebuild { background: var(--red-bg); color: var(--red); }
+  .audit-badge-btn { border: none; cursor: pointer; font-family: inherit; }
+  .audit-edit-row-inputs { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; }
+  .audit-edit-row-inputs input {
+    border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-size: 12.5px; font-family: inherit; width: 100%;
+  }
+  .done-btn {
+    flex-shrink: 0; background: var(--green); color: #fff; border: none; border-radius: 7px;
+    padding: 6px 10px; font-size: 11px; font-weight: 700; cursor: pointer; align-self: flex-start;
+  }
+  .edit-btn {
+    flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; border: none;
+    background: var(--cream); color: var(--mid); font-size: 11px; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; padding: 0;
+  }
+
+  /* ---------- AT CAMP ---------- */
+  .atcamp-note { font-size: 12px; color: var(--mid); margin-bottom: 12px; line-height: 1.4; }
+  .atcamp-summary {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px;
+  }
+  .atcamp-stat {
+    border-radius: 9px; padding: 8px 6px; text-align: center; font-size: 11px; font-weight: 700;
+  }
+  .atcamp-stat .n { display: block; font-size: 18px; font-weight: 800; margin-bottom: 1px; }
+  .stat-green { background: var(--green-bg); color: var(--green); }
+  .stat-red { background: var(--red-bg); color: var(--red); }
+  .stat-tan { background: var(--tan-bg); color: var(--tan); }
+  .stat-violet { background: var(--violet-bg); color: var(--violet); }
+
+  .atcamp-filters { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+  .filter-chip {
+    font-size: 11.5px; font-weight: 600; padding: 5px 11px; border-radius: 20px;
+    border: 1px solid var(--line); background: #fff; color: var(--mid); cursor: pointer;
+  }
+  .filter-chip.active { background: var(--navy); color: var(--cream); border-color: var(--navy); }
+
+  .atcamp-list { display: flex; flex-direction: column; gap: 7px; }
+  .atcamp-row {
+    display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid var(--line);
+    border-radius: 9px; padding: 9px 10px; border-left: 5px solid var(--line);
+  }
+  .atcamp-row.is-green { border-left-color: var(--green); }
+  .atcamp-row.is-red { border-left-color: var(--red); }
+  .atcamp-row.is-tan { border-left-color: var(--tan); }
+  .atcamp-row.is-violet { border-left-color: var(--violet); }
+
+  .atcamp-main { flex: 1; min-width: 0; }
+  .atcamp-name { font-size: 13px; color: var(--ink); font-weight: 600; line-height: 1.3; }
+  .atcamp-name-row { display: flex; align-items: center; gap: 6px; }
+  .atcamp-edit-name {
+    flex: 1; min-width: 0; font-size: 13px; font-family: inherit; font-weight: 600;
+    border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px;
+  }
+  .atcamp-input-note {
+    width: 100%; border: none; background: transparent; font-size: 11.5px; color: var(--mid);
+    padding: 1px 0 0; margin-top: 1px; font-family: inherit;
+  }
+  .atcamp-input-note:focus { outline: none; border-bottom: 1px dashed var(--gold); color: var(--ink); }
+
+  .status-btn {
+    flex-shrink: 0; font-size: 10.5px; font-weight: 700; padding: 6px 10px;
+    border-radius: 7px; border: none; cursor: pointer; white-space: nowrap; color: #fff;
+    min-width: 86px; text-align: center;
+  }
+  .status-btn.st-green { background: var(--green); }
+  .status-btn.st-red { background: var(--red); }
+  .status-btn.st-tan { background: var(--tan); }
+  .status-btn.st-violet { background: var(--violet); }
+
+  .atcamp-remove {
+    flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; border: none;
+    background: var(--cream); color: var(--mid); font-size: 14px; line-height: 1; cursor: pointer;
+  }
+
+  .atcamp-add {
+    display: flex; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line);
+  }
+  .atcamp-add input {
+    flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 7px; padding: 9px 10px;
+    font-size: 13px; font-family: inherit;
+  }
+  .atcamp-add button {
+    flex-shrink: 0; background: var(--navy); color: var(--cream); border: none; border-radius: 7px;
+    padding: 9px 14px; font-size: 13px; font-weight: 700; cursor: pointer;
+  }
+
+  .toast {
+    position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%) translateY(10px);
+    background: var(--navy); color: var(--cream); font-size: 12px; padding: 8px 16px;
+    border-radius: 20px; opacity: 0; transition: opacity 0.25s, transform 0.25s; pointer-events: none;
+    z-index: 50;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @media (max-width: 420px) {
+    .hdr h1 { font-size: 17px; }
+    .tab-btn { font-size: 12px; padding: 11px 6px; min-width: 90px; }
+    main { padding: 12px; }
+    .reset-btn { font-size: 10px; padding: 4px 8px; }
+  }
+</style>
+
+<script>
+(function () {
+  // ---------------- SUPABASE CONFIG ----------------
+  // Replace these two values with your own project's URL and anon (public) key.
+  // Found in Supabase: Project Settings > API
+  const SUPABASE_URL = 'https://wnubrrilabdqbumvnmwi.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndudWJycmlsYWJkcWJ1bXZubXdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM3MTE3MzksImV4cCI6MjA5OTI4NzczOX0.GWOWus6Y92UtYac4-XYiVFSHggYx1Pims7gsqKcRd8I';
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const TABLE = 'camp_log_data';
+
+  const STORAGE_KEY = 'camp-log-task-states';
+  const LEGACY_STORAGE_KEY = 'camp-log-2026-task-states';
+  const ATCAMP_KEY = 'camp-log-atcamp-pages';
+  const AUDIT_KEY = 'camp-log-audit-overrides';
+  const CAMPDATE_KEY = 'camp-log-camp-dates';
+
+  // ---------------- DATE HELPERS ----------------
+  function parseDateStr(s) {
+    if (!s) return null;
+    const parts = s.split('-').map(Number);
+    if (parts.length !== 3) return null;
+    return new Date(parts[0], parts[1] - 1, parts[2]);
+  }
+  function isoFromDate(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+  function addDays(date, days) {
+    const d = new Date(date);
+    d.setDate(d.getDate() + days);
+    return d;
+  }
+  function fmtShort(date) {
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+  function offsetLabel(off) {
+    const n = Math.abs(off);
+    if (off < 0) return `${n}d before camp`;
+    if (off === 0) return 'Camp start';
+    return `${n}d after start`;
+  }
+  function fmtOffset(off) {
+    if (!campStartDate) return offsetLabel(off);
+    return fmtShort(addDays(campStartDate, off));
+  }
+  function fmtOffsetRange(a, b) {
+    if (a === b) return fmtOffset(a);
+    if (!campStartDate) return `${offsetLabel(a)} – ${offsetLabel(b)}`;
+    const d1 = addDays(campStartDate, a);
+    const d2 = addDays(campStartDate, b);
+    const m1 = d1.toLocaleDateString('en-US', { month: 'short' });
+    const m2 = d2.toLocaleDateString('en-US', { month: 'short' });
+    if (m1 === m2) return `${m1} ${d1.getDate()}–${d2.getDate()}`;
+    return `${fmtShort(d1)}–${fmtShort(d2)}`;
+  }
+  function taskDateText(t) {
+    if (t.dateOffset == null) return t.dateLabel || '';
+    if (Array.isArray(t.dateOffset)) return fmtOffsetRange(t.dateOffset[0], t.dateOffset[1]);
+    return fmtOffset(t.dateOffset);
+  }
+  function headerDatesText() {
+    if (campStartDate && campEndDate) {
+      const m1 = campStartDate.toLocaleDateString('en-US', { month: 'short' });
+      const m2 = campEndDate.toLocaleDateString('en-US', { month: 'short' });
+      const y = campEndDate.getFullYear();
+      if (m1 === m2) return `${m1} ${campStartDate.getDate()}–${campEndDate.getDate()}, ${y}`;
+      return `${fmtShort(campStartDate)}–${fmtShort(campEndDate)}, ${y}`;
+    }
+    if (campStartDate) return `Starts ${fmtShort(campStartDate)}, ${campStartDate.getFullYear()}`;
+    return `Set your camp dates on the Timeline tab`;
+  }
+  function escapeAttr(s) {
+    return (s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  // ---------------- DATA ----------------
+  // Task dates are stored as day offsets relative to the camp start date (negative = days before camp).
+  const phases = [
+    {
+      label: 'Week 1 of prep', subOffset: [-34, -24],
+      tasks: [
+        { id: 'w1-1', title: "Duplicate last year's InDesign file and rename it for this year", sub: 'Keep the original as backup before making any changes', dateOffset: -34 },
+        { id: 'w1-2', title: 'Clear all year-specific text and photos from the copy', sub: 'Remove schedules, letters, cabin lists, class summaries, activity photos', dateOffset: [-34, -33] },
+        { id: 'w1-3', title: 'Send outreach emails — directors, GM, instructors', sub: 'Use the Outreach Templates tab to reach out to directors, GM, and instructors.', dateOffset: -33 },
+        { id: 'w1-4', title: "Request this year's schedule and daily themes from directors", sub: 'Needed to complete the Camp Theme page and Schedule page', dateOffset: -33 },
+        { id: 'w1-5', title: 'Create placeholder PDF on Google Drive', sub: "Single page with this year's log name. Copy the shareable link.", dateOffset: -32 },
+        { id: 'w1-6', title: "Create this year's Google Photos album placeholder", sub: 'Use last year\'s cover as the placeholder image. Share with "anyone can add photos."', dateOffset: -32 },
+        { id: 'w1-7', title: 'Generate QR code for Log PDF link', sub: 'Save as a PNG for use in the log and signing pages', dateOffset: -31 },
+        { id: 'w1-8', title: 'Generate QR code for Photos album link', sub: 'Save as a PNG for use in the log and signing pages', dateOffset: -31 },
+      ],
+    },
+    {
+      label: 'Week 2 of prep', subOffset: [-23, -17],
+      tasks: [
+        { id: 'w2-1', title: 'Update fonts, frame arrangements, graphic style', sub: 'Differentiate the look from last year — new activity page graphics, frame styles', dateOffset: [-23, -19] },
+        { id: 'w2-2', title: 'Complete Camp Theme and Schedule pages once received', sub: 'Build these as soon as the theme and schedule arrive', dateOffset: null, dateLabel: 'As received' },
+        { id: 'w2-3', title: 'Build out pages that carry over: Mission, Helaman story', sub: 'Keepers — just need a design refresh if fonts/frames changed', dateOffset: [-21, -19] },
+        { id: 'w2-4', title: 'Start building the Staff table page with known roles', sub: 'Fill in what you know now; leave gaps for late additions', dateOffset: [-19, -17] },
+      ],
+    },
+    {
+      label: 'Week 3 of prep', subOffset: [-16, -10],
+      tasks: [
+        { id: 'w3-1', title: "Follow up with anyone who hasn't sent letters or class summaries", sub: "Check in with directors, GM, and instructors who haven't sent drafts yet", dateOffset: -16 },
+        { id: 'w3-2', title: 'Place letters and class summaries as they arrive', sub: "Pastor's Corner, director letters, all class pages", dateOffset: null, dateLabel: 'Rolling' },
+        { id: 'w3-4', title: 'Draft and finalize Log Dedication page', sub: "Confirm who or what this year's dedication honors", dateOffset: [-14, -12] },
+        { id: 'w3-5', title: 'Build cabin pages with placeholder layout', sub: 'Roster names arrive later — get the frame and format set now', dateOffset: [-14, -10] },
+      ],
+    },
+    {
+      label: 'Week 4 of prep', subOffset: [-9, -3],
+      tasks: [
+        { id: 'w4-1', title: 'All letters and class summaries finalized and placed', sub: 'Hard deadline — pages need to be print-ready before camp', dateOffset: -9 },
+        { id: 'w4-2', title: 'Confirm final staff list and roles from GM', sub: 'For the Staff table page', dateOffset: -7 },
+        { id: 'w4-3', title: 'Confirm final camper list and cabin assignments from GM', sub: 'For all cabin and family pages', dateOffset: -7 },
+        { id: 'w4-4', title: 'Update all cabin and family pages with confirmed rosters', sub: '', dateOffset: [-6, -4] },
+        { id: 'w4-5', title: 'Assign photo coverage roles to volunteers', sub: 'One person per activity: archery, BB guns, zip line, wall climbing, ropes course, canoeing, swimming, arts & crafts', dateOffset: -5 },
+        { id: 'w4-6', title: 'Pack InDesign laptop, USB drives, HP printer cables, pre-punched paper', sub: 'Confirm everything needed is loaded before leaving for camp', dateOffset: [-4, -3] },
+        { id: 'w4-7', title: 'Final pre-camp proof pass — review every page color status', sub: 'Green = print-ready, Red = needs full check, Tan = needs text, Violet = needs photos', dateOffset: -3 },
+      ],
+    },
+  ];
+
+  const templates = [
+    {
+      title: "Pastor's Corner & Class Summary — Fred Greene",
+      to: 'To: Fred Greene',
+      body: `Hi Fred,
+
+Putting together this year's camp log and would love to include your Pastor's Corner reflection and a short summary of your class.
+
+For the Pastor's Corner: a few paragraphs on whatever's on your heart for camp this year is perfect, same as always.
+
+For the class summary: what you focused on, the scriptures or principles you taught, and anything that stood out from the kids' response.
+
+Whenever you can get me a draft works — I'll get your pages built ahead of camp, or I can grab it from you in person at camp if that's easier.
+
+Thank you for all you pour into this camp, Fred. It shows in every log we've ever made.
+
+Rex`,
+    },
+    {
+      title: 'Director Letter — Chris Taylor',
+      to: 'To: Chris Taylor',
+      body: `Hi Chris,
+
+Building this year's camp log and would love your director's letter for this year's edition, same as always.
+
+A few paragraphs is all I need: how you're feeling about camp this year, anything on your heart for the campers and staff, and whatever you want said to the families who'll read this log.
+
+Whenever you can send it works — I'll get your page built ahead of camp. Otherwise I'll catch you at camp.
+
+Thanks for everything you do to make this camp what it is, Chris.
+
+Rex`,
+    },
+    {
+      title: 'Director Letter — Jerry Skotak',
+      to: 'To: Jerry Skotak',
+      body: `Hi Jerry,
+
+Putting this year's camp log together and would love your director's letter again this year.
+
+A few paragraphs works great: what's on your heart for this year's camp, anything you want the campers and families to know, and whatever feels true to where camp is right now.
+
+Whenever you can send it works — I'll get your page ready ahead of camp. Otherwise I'll grab it from you at camp.
+
+Thank you for everything you've poured into this camp, Jerry.
+
+Rex`,
+    },
+    {
+      title: 'GM Schedule & Rosters',
+      to: 'To: ',
+      body: `Hi ,
+
+Building this year's camp log and need a few things from you when you have a chance:
+
+1. The schedule and daily themes, so I can build the Schedule and Camp Theme pages.
+2. The confirmed staff list with roles, for the Staff table page.
+3. The confirmed camper list with cabin assignments, for the cabin and family pages.
+
+The schedule is most useful early so I can get pages built before we leave. The staff and camper lists can come closer to camp so they're current.
+
+Thanks for keeping all of this organized behind the scenes — the log couldn't come together without it.
+
+Rex`,
+    },
+    {
+      title: 'Class Summary — Teacher',
+      to: 'To: ',
+      body: `Hi ,
+
+Working on this year's camp log and would love to include a summary of your class again.
+
+A short write-up is all I need — what you taught, the main points or scriptures you covered, and anything that stood out from how the kids responded.
+
+Send it whenever works for you, ideally before camp so I can build the page — or I can grab it from you at camp.
+
+Thank you for what you pour into these classes — the kids remember them.
+
+Rex`,
+    },
+  ];
+
+  // Page list pulled from the actual camp log
+  const auditRowsDefault = [
+    { id: 'a1', page: 'Cover page', status: 'rebuild', note: 'Needs a new cover image' },
+    { id: 'a2', page: 'Group photo page', status: 'rebuild', note: 'New group shot from camp' },
+    { id: 'a3', page: 'Camp Theme', status: 'rebuild', note: 'Awaiting new theme from directors' },
+    { id: 'a4', page: 'Log Dedication', status: 'rebuild', note: 'Decide honoree for the dedication' },
+    { id: 'a5', page: "Pastor's Corner (Fred Greene)", status: 'rebuild', note: 'New reflection — send outreach now' },
+    { id: 'a6', page: 'Letter from Director (Chris Taylor)', status: 'rebuild', note: 'New letter — send outreach now' },
+    { id: 'a7', page: 'Letter from Director (Jerry Skotak)', status: 'rebuild', note: 'New letter — send outreach now' },
+    { id: 'a8', page: 'Schedule', status: 'rebuild', note: 'Awaiting schedule from GM' },
+    { id: 'a9', page: 'Jr. Girls Cabin', status: 'update', note: 'Same layout, update names and cabin photo' },
+    { id: 'a10', page: 'Sr. High Girls Cabin', status: 'update', note: 'Same layout, update names and cabin photo' },
+    { id: 'a11', page: 'Jr. Boys Cabin', status: 'update', note: 'Same layout, update names and cabin photo' },
+    { id: 'a12', page: 'Sr. High Boys Cabin', status: 'update', note: 'Same layout, update names and cabin photo' },
+    { id: 'a13', page: 'Womens (Adult Family Group)', status: 'update', note: 'Same Q&A format, new group and photo' },
+    { id: 'a14', page: 'Mens (Adult Family Group)', status: 'update', note: 'Same Q&A format, new group and photo' },
+    { id: 'a15', page: 'Rockwood Family', status: 'update', note: 'Same format, new answers and photo' },
+    { id: 'a16', page: 'Greene / Gilliard Family', status: 'update', note: 'Same format, new answers and photo' },
+    { id: 'a17', page: 'Keller Family', status: 'update', note: 'Same format, new answers and photo' },
+    { id: 'a18', page: 'Eskridge Family', status: 'update', note: 'Same format, new answers and photo' },
+    { id: 'a19', page: 'Loving Family', status: 'update', note: 'Same format, new answers and photo' },
+    { id: 'a20', page: 'The Greenes (Fred & Carolyn)', status: 'update', note: 'Same format, new answers and photo' },
+    { id: 'a21', page: "Fred Greene's Class", status: 'rebuild', note: 'New summary + new photos' },
+    { id: 'a22', page: "Ron Smith's Class", status: 'rebuild', note: 'New summary + new photos' },
+    { id: 'a23', page: 'Prebaptismal Class (Tanner & Becca Rockwood)', status: 'rebuild', note: 'New summary + new photos' },
+    { id: 'a24', page: "Joel Loving's Class", status: 'rebuild', note: 'New summary + new photos' },
+    { id: 'a25', page: 'Baptisms and Confirmations', status: 'rebuild', note: 'New names + new photos' },
+    { id: 'a26', page: 'Camp Staff table', status: 'update', note: 'Same format, update names and roles' },
+    { id: 'a27', page: 'Helaman / 2000 Strong Story', status: 'keep', note: 'Permanent content, no changes needed' },
+    { id: 'a28', page: 'Our Mission & Our Belief', status: 'keep', note: 'Permanent content, no changes needed' },
+    { id: 'a29', page: 'QR Archive / Log & Photos page', status: 'update', note: 'Add updated QR codes for Log PDF and Photos album' },
+  ];
+  // auditRows is the live, editable copy — auditRowsDefault stays untouched so Reset All can restore it.
+  const auditRows = auditRowsDefault.map(r => ({ ...r }));
+
+  // At Camp — Green/Red/Tan/Violet production tracker
+  // green = ready to print · red = needs full check · tan = needs text · violet = needs photos
+  const defaultAtCampPages = [
+    { name: 'Cover page', status: 'violet', note: 'Needs new cover image' },
+    { name: 'Group photo page', status: 'violet', note: 'Needs group photo' },
+    { name: 'Camp Theme', status: 'tan', note: 'Waiting on directors' },
+    { name: 'Log Dedication', status: 'tan', note: 'Confirm honoree' },
+    { name: "Pastor's Corner (Fred Greene)", status: 'red', note: 'Needs letter + photo' },
+    { name: 'Letter from Director (Chris Taylor)', status: 'red', note: 'Needs letter + photo' },
+    { name: 'Letter from Director (Jerry Skotak)', status: 'red', note: 'Needs letter + photo' },
+    { name: 'Schedule', status: 'tan', note: 'Waiting on GM' },
+    { name: 'Jr. Girls Cabin', status: 'red', note: 'Needs roster + cabin photo' },
+    { name: 'Sr. High Girls Cabin', status: 'red', note: 'Needs roster + cabin photo' },
+    { name: 'Jr. Boys Cabin', status: 'red', note: 'Needs roster + cabin photo' },
+    { name: 'Sr. High Boys Cabin', status: 'red', note: 'Needs roster + cabin photo' },
+    { name: 'Womens (Adult Family Group)', status: 'red', note: 'Needs group + answers + photo' },
+    { name: 'Mens (Adult Family Group)', status: 'red', note: 'Needs group + answers + photo' },
+    { name: 'Rockwood Family', status: 'red', note: 'Needs answers + photo' },
+    { name: 'Greene / Gilliard Family', status: 'red', note: 'Needs answers + photo' },
+    { name: 'Keller Family', status: 'red', note: 'Needs answers + photo' },
+    { name: 'Eskridge Family', status: 'red', note: 'Needs answers + photo' },
+    { name: 'Loving Family', status: 'red', note: 'Needs answers + photo' },
+    { name: 'The Greenes (Fred & Carolyn)', status: 'red', note: 'Needs answers + photo' },
+    { name: "Fred Greene's Class", status: 'red', note: 'Needs summary + photos' },
+    { name: "Ron Smith's Class", status: 'red', note: 'Needs summary + photos' },
+    { name: 'Prebaptismal Class (Tanner & Becca Rockwood)', status: 'red', note: 'Needs summary + photos' },
+    { name: "Joel Loving's Class", status: 'red', note: 'Needs summary + photos' },
+    { name: 'Baptisms and Confirmations', status: 'violet', note: 'Needs names + photos' },
+    { name: 'Camp Staff table', status: 'tan', note: 'Needs final names/roles' },
+    { name: 'Helaman / 2000 Strong Story', status: 'green', note: '' },
+    { name: 'Our Mission & Our Belief', status: 'green', note: '' },
+    { name: 'QR Archive / Log & Photos page', status: 'tan', note: 'Add updated QR codes' },
+    // At-camp activity / photo coverage pages
+    { name: 'Archery & BB guns', status: 'violet', note: 'Needs photos' },
+    { name: 'Arts & Crafts', status: 'violet', note: 'Needs photos' },
+    { name: 'Baptisms', status: 'violet', note: 'Needs photos' },
+    { name: 'Boating', status: 'violet', note: 'Needs photos' },
+    { name: 'Cabin Photos', status: 'violet', note: 'Needs photos' },
+    { name: 'Group Photo', status: 'violet', note: 'Needs photos' },
+    { name: 'Campfire', status: 'violet', note: 'Needs photos' },
+    { name: 'Canoe', status: 'violet', note: 'Needs photos' },
+    { name: 'Commitment Service', status: 'violet', note: 'Needs photos' },
+    { name: 'Dinning', status: 'violet', note: 'Needs photos' },
+    { name: 'DJ - Party', status: 'violet', note: 'Needs photos' },
+    { name: 'Field Day', status: 'violet', note: 'Needs photos' },
+    { name: 'Horseback', status: 'violet', note: 'Needs photos' },
+    { name: 'Nature', status: 'violet', note: 'Needs photos' },
+    { name: 'People-Friends', status: 'violet', note: 'Needs photos' },
+    { name: 'Petting Zoo', status: 'violet', note: 'Needs photos' },
+    { name: 'Little Lights Club', status: 'violet', note: 'Needs photos' },
+    { name: 'Pickleball & Basketball', status: 'violet', note: 'Needs photos' },
+    { name: 'Ropes Course', status: 'violet', note: 'Needs photos' },
+    { name: 'Song Worship', status: 'violet', note: 'Needs photos' },
+    { name: 'Swimming', status: 'violet', note: 'Needs photos' },
+    { name: 'Talent Show', status: 'violet', note: 'Needs photos' },
+    { name: 'Wall Climb', status: 'violet', note: 'Needs photos' },
+    { name: 'Zip Line', status: 'violet', note: 'Needs photos' },
+  ];
+
+  // ---------------- STATE ----------------
+  let taskState = {};
+  let atCampPages = [];
+  let atCampFilter = 'all';
+  let atCampEditingIds = new Set();
+  let auditOverrides = {};
+  let auditEditingIds = new Set();
+  let campStartDate = null;
+  let campEndDate = null;
+
+  async function loadCampDates() {
+    try {
+      const { data, error } = await supabase.from(TABLE).select('value').eq('key', CAMPDATE_KEY).maybeSingle();
+      if (error) throw error;
+      const v = data && data.value ? data.value : null;
+      campStartDate = v && v.start ? parseDateStr(v.start) : null;
+      campEndDate = v && v.end ? parseDateStr(v.end) : null;
+    } catch (e) {
+      console.error('Supabase load (campdates) failed:', e);
+    }
+  }
+
+  async function saveCampDates(startStr, endStr) {
+    try {
+      const { error } = await supabase.from(TABLE).upsert({ key: CAMPDATE_KEY, value: { start: startStr, end: endStr }, updated_at: new Date().toISOString() });
+      if (error) throw error;
+      showToast('Camp dates saved');
+    } catch (e) {
+      console.error('Supabase save (campdates) failed:', e);
+      showToast('Could not save — try again');
+    }
+  }
+
+  async function loadAuditOverrides() {
+    try {
+      const { data, error } = await supabase.from(TABLE).select('value').eq('key', AUDIT_KEY).maybeSingle();
+      if (error) throw error;
+      auditOverrides = data && data.value ? data.value : {};
+    } catch (e) {
+      console.error('Supabase load (audit) failed:', e);
+      auditOverrides = {};
+    }
+    auditRows.forEach(row => {
+      const ov = auditOverrides[row.id];
+      if (ov) {
+        if (ov.status) row.status = ov.status;
+        if (ov.page) row.page = ov.page;
+        if (typeof ov.note === 'string') row.note = ov.note;
+      }
+    });
+  }
+
+  async function saveAuditOverrides() {
+    try {
+      const { error } = await supabase.from(TABLE).upsert({ key: AUDIT_KEY, value: auditOverrides, updated_at: new Date().toISOString() });
+      if (error) throw error;
+      showToast('Saved');
+    } catch (e) {
+      console.error('Supabase save (audit) failed:', e);
+      showToast('Could not save — try again');
+    }
+  }
+
+  async function loadAtCampPages() {
+    try {
+      const { data, error } = await supabase.from(TABLE).select('value').eq('key', ATCAMP_KEY).maybeSingle();
+      if (error) throw error;
+      atCampPages = data && data.value ? data.value : null;
+    } catch (e) {
+      console.error('Supabase load (atcamp) failed:', e);
+      atCampPages = null;
+    }
+    if (!atCampPages || !Array.isArray(atCampPages) || atCampPages.length === 0) {
+      atCampPages = defaultAtCampPages.map((p, i) => ({ id: 'ac-' + i, ...p }));
+    }
+  }
+
+  async function saveAtCampPages() {
+    try {
+      const { error } = await supabase.from(TABLE).upsert({ key: ATCAMP_KEY, value: atCampPages, updated_at: new Date().toISOString() });
+      if (error) throw error;
+      showToast('Saved');
+    } catch (e) {
+      console.error('Supabase save (atcamp) failed:', e);
+      showToast('Could not save — try again');
+    }
+  }
+
+  async function loadState() {
+    try {
+      const { data, error } = await supabase.from(TABLE).select('value').eq('key', STORAGE_KEY).maybeSingle();
+      if (error) throw error;
+      if (data && data.value) {
+        taskState = data.value;
+        return;
+      }
+      // Fall back to the legacy key so existing progress isn't lost, then migrate forward.
+      const legacy = await supabase.from(TABLE).select('value').eq('key', LEGACY_STORAGE_KEY).maybeSingle();
+      taskState = legacy.data && legacy.data.value ? legacy.data.value : {};
+    } catch (e) {
+      console.error('Supabase load (tasks) failed:', e);
+      taskState = {};
+    }
+  }
+
+  async function saveState() {
+    try {
+      const { error } = await supabase.from(TABLE).upsert({ key: STORAGE_KEY, value: taskState, updated_at: new Date().toISOString() });
+      if (error) throw error;
+      showToast('Progress saved');
+    } catch (e) {
+      console.error('Supabase save (tasks) failed:', e);
+      showToast('Could not save — try again');
+    }
+  }
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove('show'), 1600);
+  }
+
+  function allTaskIds() {
+    return phases.flatMap(p => p.tasks.map(t => t.id));
+  }
+
+  function updateProgress() {
+    const ids = allTaskIds();
+    const done = ids.filter(id => taskState[id]).length;
+    const pct = ids.length ? Math.round((done / ids.length) * 100) : 0;
+    document.getElementById('prog-bar').style.width = pct + '%';
+    document.getElementById('prog-label').textContent = `${done} of ${ids.length} tasks`;
+  }
+
+  function updateHeaderSub() {
+    const el = document.getElementById('hdr-sub');
+    if (el) el.innerHTML = `Planning Tracker &nbsp;&middot;&nbsp; Camp Grady Spruce &nbsp;&middot;&nbsp; ${headerDatesText()}`;
+  }
+
+  // ---------------- BUILD: TIMELINE ----------------
+  function buildTimeline() {
+    const root = document.getElementById('panel-timeline');
+    root.innerHTML = '';
+
+    const dateBox = document.createElement('div');
+    dateBox.className = 'campdate-box';
+    const startVal = campStartDate ? isoFromDate(campStartDate) : '';
+    const endVal = campEndDate ? isoFromDate(campEndDate) : '';
+    dateBox.innerHTML = `
+      <div class="campdate-label">Camp Dates</div>
+      <div class="campdate-row">
+        <label>Start<input type="date" id="camp-start-input" value="${startVal}"></label>
+        <label>End<input type="date" id="camp-end-input" value="${endVal}"></label>
+        <button id="camp-date-save">Save</button>
+      </div>
+      <p class="campdate-hint">Task dates below are calculated from your camp start date.</p>
+    `;
+    root.appendChild(dateBox);
+
+    document.getElementById('camp-date-save').addEventListener('click', async () => {
+      const s = document.getElementById('camp-start-input').value;
+      const e = document.getElementById('camp-end-input').value;
+      if (!s) { showToast('Enter a start date'); return; }
+      campStartDate = parseDateStr(s);
+      campEndDate = e ? parseDateStr(e) : null;
+      await saveCampDates(s, e);
+      updateHeaderSub();
+      buildTimeline();
+    });
+
+    phases.forEach(phase => {
+      const phaseEl = document.createElement('div');
+      phaseEl.className = 'phase';
+      phaseEl.innerHTML = `
+        <div class="phase-head">
+          <span class="phase-label">${phase.label}</span>
+          <span class="phase-sub">${fmtOffsetRange(phase.subOffset[0], phase.subOffset[1])}</span>
+        </div>
+        <div class="phase-card">
+          ${phase.tasks.map(t => `
+            <div class="task-row">
+              <input type="checkbox" class="task-check" data-id="${t.id}" ${taskState[t.id] ? 'checked' : ''} aria-label="${t.title}">
+              <div class="task-main">
+                <div class="task-title ${taskState[t.id] ? 'done' : ''}" data-title-for="${t.id}">${t.title}</div>
+                ${t.sub ? `<div class="task-sub">${t.sub}</div>` : ''}
+              </div>
+              <div class="task-date">${taskDateText(t)}</div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+      root.appendChild(phaseEl);
+    });
+
+    root.querySelectorAll('.task-check').forEach(box => {
+      box.addEventListener('change', async (e) => {
+        const id = e.target.dataset.id;
+        taskState[id] = e.target.checked;
+        const titleEl = root.querySelector(`[data-title-for="${id}"]`);
+        titleEl.classList.toggle('done', e.target.checked);
+        updateProgress();
+        await saveState();
+      });
+    });
+  }
+
+  // ---------------- BUILD: TEMPLATES ----------------
+  function buildTemplates() {
+    const root = document.getElementById('panel-templates');
+    root.innerHTML = `<p class="tmpl-note">Tap "Copy text" to copy a template, then paste it into an email or text. Fill in any blank names before sending.</p>`;
+    templates.forEach((t, i) => {
+      const card = document.createElement('div');
+      card.className = 'template-card';
+      card.innerHTML = `
+        <div class="template-title">${t.title}</div>
+        <div class="template-to">${t.to}</div>
+        <div class="template-body" id="tmpl-${i}">${t.body}</div>
+        <button class="copy-btn" id="copy-${i}">Copy text</button>
+      `;
+      root.appendChild(card);
+    });
+
+    templates.forEach((t, i) => {
+      document.getElementById(`copy-${i}`).addEventListener('click', () => {
+        const text = document.getElementById(`tmpl-${i}`).textContent;
+        const btn = document.getElementById(`copy-${i}`);
+        const markCopied = () => {
+          btn.textContent = 'Copied!';
+          btn.classList.add('copied');
+          setTimeout(() => { btn.textContent = 'Copy text'; btn.classList.remove('copied'); }, 1800);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(markCopied).catch(() => fallbackCopy(text, markCopied));
+        } else {
+          fallbackCopy(text, markCopied);
+        }
+      });
+    });
+  }
+
+  function fallbackCopy(text, cb) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); cb(); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+
+  // ---------------- BUILD: AUDIT ----------------
+  function buildAudit() {
+    const root = document.getElementById('panel-audit');
+    const keep = auditRows.filter(r => r.status === 'keep').length;
+    const update = auditRows.filter(r => r.status === 'update').length;
+    const rebuild = auditRows.filter(r => r.status === 'rebuild').length;
+
+    root.innerHTML = `
+      <p class="tmpl-note">Tap a status pill to cycle Keep → Update → Rebuild. Tap ✎ to edit a page's name or note.</p>
+      <div class="audit-summary">
+        <div class="audit-stat"><span class="audit-dot" style="background:var(--green)"></span><span style="color:var(--green);font-weight:700;">${keep} Keep as-is</span></div>
+        <div class="audit-stat"><span class="audit-dot" style="background:var(--amber)"></span><span style="color:var(--amber);font-weight:700;">${update} Update data</span></div>
+        <div class="audit-stat"><span class="audit-dot" style="background:var(--red)"></span><span style="color:var(--red);font-weight:700;">${rebuild} Rebuild fresh</span></div>
+      </div>
+      <div class="audit-list">
+        ${auditRows.map(row => {
+          const badgeClass = row.status === 'keep' ? 'badge-keep' : row.status === 'update' ? 'badge-update' : 'badge-rebuild';
+          const badgeLabel = row.status === 'keep' ? 'Keep' : row.status === 'update' ? 'Update' : 'Rebuild';
+          if (auditEditingIds.has(row.id)) {
+            return `
+              <div class="audit-row">
+                <div class="audit-edit-row-inputs">
+                  <input type="text" class="audit-edit-page" data-audit-page-for="${row.id}" value="${escapeAttr(row.page)}">
+                  <input type="text" class="audit-edit-note" data-audit-note-for="${row.id}" value="${escapeAttr(row.note)}">
+                </div>
+                <button class="done-btn" data-audit-done="${row.id}">Done</button>
+              </div>
+            `;
+          }
+          return `
+            <div class="audit-row">
+              <div class="audit-page">${row.page}<div class="audit-note">${row.note}</div></div>
+              <button class="edit-btn" data-audit-edit="${row.id}" aria-label="Edit">✎</button>
+              <button class="audit-badge audit-badge-btn ${badgeClass}" data-audit-id="${row.id}">${badgeLabel}</button>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+
+    root.querySelectorAll('.audit-badge-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.auditId;
+        const row = auditRows.find(r => r.id === id);
+        const order = ['keep', 'update', 'rebuild'];
+        const idx = order.indexOf(row.status);
+        row.status = order[(idx + 1) % order.length];
+        auditOverrides[id] = { status: row.status, page: row.page, note: row.note };
+        buildAudit();
+        await saveAuditOverrides();
+      });
+    });
+
+    root.querySelectorAll('[data-audit-edit]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        auditEditingIds.add(btn.dataset.auditEdit);
+        buildAudit();
+      });
+    });
+
+    root.querySelectorAll('[data-audit-done]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.auditDone;
+        const row = auditRows.find(r => r.id === id);
+        const pageInput = root.querySelector(`[data-audit-page-for="${id}"]`);
+        const noteInput = root.querySelector(`[data-audit-note-for="${id}"]`);
+        row.page = pageInput.value.trim() || row.page;
+        row.note = noteInput.value;
+        auditEditingIds.delete(id);
+        auditOverrides[id] = { status: row.status, page: row.page, note: row.note };
+        buildAudit();
+        await saveAuditOverrides();
+      });
+    });
+  }
+
+  // ---------------- BUILD: AT CAMP ----------------
+  const STATUS_ORDER = ['green', 'red', 'tan', 'violet'];
+  const STATUS_LABEL = { green: 'Ready to print', red: 'Needs full check', tan: 'Needs text', violet: 'Needs photos' };
+  const STATUS_SHORT = { green: 'Ready', red: 'Full check', tan: 'Needs text', violet: 'Needs photos' };
+
+  function buildAtCamp() {
+    const root = document.getElementById('panel-atcamp');
+    const counts = { green: 0, red: 0, tan: 0, violet: 0 };
+    atCampPages.forEach(p => counts[p.status] = (counts[p.status] || 0) + 1);
+
+    const visiblePages = atCampFilter === 'all' ? atCampPages : atCampPages.filter(p => p.status === atCampFilter);
+
+    root.innerHTML = `
+      <p class="atcamp-note">Tap a status pill to cycle Green → Red → Tan → Violet. Tap ✎ to rename a page, or tap a note to edit it. Matches your InDesign color-coding: <b>Green</b> = ready to print, <b>Red</b> = needs full check, <b>Tan</b> = needs text, <b>Violet</b> = needs photos.</p>
+      <div class="atcamp-summary">
+        <div class="atcamp-stat stat-green"><span class="n">${counts.green || 0}</span>Green</div>
+        <div class="atcamp-stat stat-red"><span class="n">${counts.red || 0}</span>Red</div>
+        <div class="atcamp-stat stat-tan"><span class="n">${counts.tan || 0}</span>Tan</div>
+        <div class="atcamp-stat stat-violet"><span class="n">${counts.violet || 0}</span>Violet</div>
+      </div>
+      <div class="atcamp-filters" id="atcamp-filters">
+        <button class="filter-chip ${atCampFilter === 'all' ? 'active' : ''}" data-filter="all">All (${atCampPages.length})</button>
+        <button class="filter-chip ${atCampFilter === 'green' ? 'active' : ''}" data-filter="green">Green</button>
+        <button class="filter-chip ${atCampFilter === 'red' ? 'active' : ''}" data-filter="red">Red</button>
+        <button class="filter-chip ${atCampFilter === 'tan' ? 'active' : ''}" data-filter="tan">Tan</button>
+        <button class="filter-chip ${atCampFilter === 'violet' ? 'active' : ''}" data-filter="violet">Violet</button>
+      </div>
+      <div class="atcamp-list" id="atcamp-list">
+        ${visiblePages.map(p => {
+          const nameBlock = atCampEditingIds.has(p.id)
+            ? `<input class="atcamp-edit-name" data-name-for="${p.id}" value="${escapeAttr(p.name)}">`
+            : `<div class="atcamp-name">${p.name}</div>`;
+          const editBtn = atCampEditingIds.has(p.id)
+            ? `<button class="edit-btn" data-name-done="${p.id}" aria-label="Save name">✓</button>`
+            : `<button class="edit-btn" data-name-edit="${p.id}" aria-label="Edit name">✎</button>`;
+          return `
+            <div class="atcamp-row is-${p.status}" data-id="${p.id}">
+              <div class="atcamp-main">
+                <div class="atcamp-name-row">${nameBlock}${editBtn}</div>
+                <input class="atcamp-input-note" data-note-for="${p.id}" value="${escapeAttr(p.note)}" placeholder="Add a note…">
+              </div>
+              <button class="status-btn st-${p.status}" data-status-for="${p.id}">${STATUS_SHORT[p.status]}</button>
+              <button class="atcamp-remove" data-remove="${p.id}" aria-label="Remove page">×</button>
+            </div>
+          `;
+        }).join('')}
+      </div>
+      <div class="atcamp-add">
+        <input type="text" id="atcamp-new-name" placeholder="Add a page (e.g. Talent Show photos)">
+        <button id="atcamp-add-btn">Add</button>
+      </div>
+    `;
+
+    root.querySelectorAll('.status-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.statusFor;
+        const p = atCampPages.find(x => x.id === id);
+        const idx = STATUS_ORDER.indexOf(p.status);
+        p.status = STATUS_ORDER[(idx + 1) % STATUS_ORDER.length];
+        buildAtCamp();
+        await saveAtCampPages();
+      });
+    });
+
+    root.querySelectorAll('.atcamp-input-note').forEach(input => {
+      input.addEventListener('change', async (e) => {
+        const id = e.target.dataset.noteFor;
+        const p = atCampPages.find(x => x.id === id);
+        p.note = e.target.value;
+        await saveAtCampPages();
+      });
+    });
+
+    root.querySelectorAll('[data-name-edit]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        atCampEditingIds.add(btn.dataset.nameEdit);
+        buildAtCamp();
+      });
+    });
+
+    root.querySelectorAll('[data-name-done]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.nameDone;
+        const input = root.querySelector(`[data-name-for="${id}"]`);
+        const p = atCampPages.find(x => x.id === id);
+        p.name = input.value.trim() || p.name;
+        atCampEditingIds.delete(id);
+        buildAtCamp();
+        await saveAtCampPages();
+      });
+    });
+
+    root.querySelectorAll('.atcamp-remove').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.remove;
+        atCampPages = atCampPages.filter(x => x.id !== id);
+        buildAtCamp();
+        await saveAtCampPages();
+      });
+    });
+
+    root.querySelectorAll('.filter-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        atCampFilter = chip.dataset.filter;
+        buildAtCamp();
+      });
+    });
+
+    document.getElementById('atcamp-add-btn').addEventListener('click', async () => {
+      const input = document.getElementById('atcamp-new-name');
+      const name = input.value.trim();
+      if (!name) return;
+      atCampPages.push({ id: 'ac-' + Date.now(), name, status: 'red', note: '' });
+      input.value = '';
+      buildAtCamp();
+      await saveAtCampPages();
+    });
+
+    const nameInput = document.getElementById('atcamp-new-name');
+    nameInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('atcamp-add-btn').click();
+    });
+  }
+
+  // ---------------- RESET ALL ----------------
+  async function resetAll() {
+    const first = confirm(
+      "Reset All will clear every checked task, all At Camp page additions/edits/status changes, and all Content Audit status/text changes — putting everything back to a pre-camp, pre-start status. Your camp dates will be kept.\n\nContinue?"
+    );
+    if (!first) return;
+    const second = confirm(
+      "This is permanent and can't be undone. Are you absolutely sure you want to reset everything?"
+    );
+    if (!second) return;
+
+    try {
+      await supabase.from(TABLE).delete().eq('key', STORAGE_KEY);
+      await supabase.from(TABLE).delete().eq('key', LEGACY_STORAGE_KEY);
+      await supabase.from(TABLE).delete().eq('key', ATCAMP_KEY);
+      await supabase.from(TABLE).delete().eq('key', AUDIT_KEY);
+      showToast('Everything reset');
+    } catch (e) {
+      console.error('Reset failed:', e);
+      showToast('Reset failed — try again');
+      return;
+    }
+    setTimeout(() => location.reload(), 700);
+  }
+
+  // ---------------- TABS ----------------
+  function setupTabs() {
+    const buttons = document.querySelectorAll('#tabs .tab-btn');
+    buttons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        buttons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+        document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+      });
+    });
+  }
+
+  // ---------------- INIT ----------------
+  async function init() {
+    await loadState();
+    await loadAtCampPages();
+    await loadAuditOverrides();
+    await loadCampDates();
+    buildTimeline();
+    buildTemplates();
+    buildAudit();
+    buildAtCamp();
+    setupTabs();
+    updateProgress();
+    updateHeaderSub();
+    document.getElementById('reset-all-btn').addEventListener('click', resetAll);
+  }
+
+  init();
+})();
+</script>
+
+</body>
+</html>
